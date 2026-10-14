@@ -1,0 +1,31 @@
+<idea-plugin>
+    <id>de.inetsoftware.gradle-sync-queue</id>
+    <name>Gradle Sync Queue</name>
+    <vendor url="https://www.inetsoftware.de">i-net software</vendor>
+    <description><![CDATA[
+    <p>Runs Gradle syncs of a project one after another instead of all at once.</p>
+    <p>When a project links many Gradle builds, IntelliJ IDEA starts a sync for each of them in parallel.
+    Every sync that finds the existing Gradle daemons busy spawns a new one, which can mean dozens of daemons
+    and several gigabytes of memory within seconds. This plugin puts all Gradle model resolution of a project
+    through a FIFO queue, so one daemon is reused for all builds.</p>
+    <ul>
+      <li>Works for every sync, including those started by the IDE itself</li>
+      <li><b>Gradle Queue</b> tool window: queued, running and finished syncs; cancel or release entries</li>
+      <li><i>Refresh Gradle via Queue</i> in the Project view context menu</li>
+    </ul>
+    ]]></description>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.gradle</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <externalSystemTaskNotificationListener implementation="de.inetsoftware.gradlesyncqueue.TaskCompletionListener"/>
+        <toolWindow id="Gradle Queue" anchor="bottom" icon="AllIcons.Actions.Refresh" factoryClass="de.inetsoftware.gradlesyncqueue.QueueWindowFactory"/>
+    </extensions>
+    <extensions defaultExtensionNs="org.jetbrains.plugins.gradle">
+        <projectResolve implementation="de.inetsoftware.gradlesyncqueue.QueuedResolverExtension"/>
+    </extensions>
+    <actions>
+        <action id="de.inetsoftware.gradlesyncqueue.QueueSelectedGradleAction" class="de.inetsoftware.gradlesyncqueue.QueueSelectedGradleAction" text="Refresh Gradle via Queue" description="Queue a Gradle refresh for the selected builds">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

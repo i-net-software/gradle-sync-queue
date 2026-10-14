@@ -1,4 +1,5 @@
 import org.jetbrains.changelog.Changelog
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 
 plugins {
     id("org.jetbrains.intellij.platform") version "2.19.0"
@@ -22,7 +23,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-kotlin { jvmToolchain(25) }
+kotlin {
+    jvmToolchain(25)
+    // Use the IDE's interface default methods instead of generating bridges (which the verifier flags as API usages)
+    compilerOptions { jvmDefault = JvmDefaultMode.NO_COMPATIBILITY }
+}
 
 intellijPlatform {
     pluginConfiguration {

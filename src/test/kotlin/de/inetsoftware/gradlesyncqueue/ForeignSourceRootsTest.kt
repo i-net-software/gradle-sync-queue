@@ -86,4 +86,27 @@ class ForeignSourceRootsTest : HeavyPlatformTestCase() {
         assertTrue(entry.isExported)
         assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
     }
+
+    fun testDeclaredButDroppedFolderStillGivesDependency() {
+        // IDEA kept InetShared/src only in InetShared.main; Gradle still declares it for InetServerCore.main
+        lateinit var core: VirtualFile
+        lateinit var shared: VirtualFile
+        WriteAction.run<Exception> {
+            val ws = tempDir.createVirtualDir()
+            core = ws.createChildDirectory(this, "InetServerCore")
+            shared = ws.createChildDirectory(this, "InetShared")
+            core.createChildDirectory(this, "src")
+            shared.createChildDirectory(this, "src")
+        }
+        val coreModule = createModule("InetServerCore.main")
+        val sharedModule = createModule("InetShared.main")
+        PsiTestUtil.addSourceContentToRoots(coreModule, core.findChild("src")!!)
+        PsiTestUtil.addSourceContentToRoots(sharedModule, shared.findChild("src")!!)
+        val dirs = mapOf<Module, String>(coreModule to core.path, sharedModule to shared.path)
+        val declared = mapOf(coreModule to listOf(core.path + "/src", shared.path + "/src"))
+        val roots = ForeignSourceRoots(project, { declared[it].orEmpty() }) { dirs[it] }
+        roots.apply(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+        assertEquals(listOf(sharedModule), ModuleRootManager.getInstance(coreModule).dependencies.toList())
+        assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+    }
 }

@@ -17,6 +17,11 @@ import com.intellij.openapi.vfs.VfsUtilCore
  */
 class ForeignSourceRoots(
     private val project: Project,
+    /**
+     * Source folders the Gradle model declares for a module. IDEA may have dropped some of them from the module
+     * (a folder can belong to one module only), so the IDE model alone does not show every borrowed folder.
+     */
+    private val declaredSourcesOf: (Module) -> Collection<String> = { emptyList() },
     /** Folder of the Gradle (sub)project a module was imported from, `null` for modules not imported from Gradle. */
     private val projectDirOf: (Module) -> String?,
 ) {
@@ -28,36 +33,37 @@ class ForeignSourceRoots(
     fun plan(): List<Change> {
         val modules = ModuleManager.getInstance(project).modules
         val dirs = modules.associateWith { projectDirOf(it)?.let(::normalize) }
-        // Source folder url → modules having it
-        val holders = HashMap<String, MutableList<Module>>()
+        // Source folder path → modules having it in IDEA, or declaring it in Gradle
+        val ideFolders = modules.associateWith { module ->
+            ModuleRootManager.getInstance(module).contentEntries.flatMap { it.sourceFolders.toList() }
+                .associateBy { normalize(VfsUtilCore.urlToPath(it.url)) }
+        }
+        val declared = modules.associateWith { module -> declaredSourcesOf(module).map(::normalize).toSet() }
+        val holders = HashMap<String, MutableSet<Module>>()
         for (module in modules) {
-            for (entry in ModuleRootManager.getInstance(module).contentEntries) {
-                for (folder in entry.sourceFolders) holders.getOrPut(folder.url) { ArrayList() } += module
-            }
+            (ideFolders[module]!!.keys + declared[module]!!).forEach { holders.getOrPut(it) { LinkedHashSet() } += module }
         }
         val eclipse = EclipseProjects(modules.mapNotNull { dirs[it] }.toSet())
         val changes = ArrayList<Change>()
         for (module in modules) {
             val ownDir = dirs[module] ?: continue
+            val existing = ModuleRootManager.getInstance(module).dependencies.toSet()
             val urls = LinkedHashSet<String>()
             val deps = LinkedHashSet<Module>()
             val exported = LinkedHashSet<Module>()
-            for (entry in ModuleRootManager.getInstance(module).contentEntries) {
-                for (folder in entry.sourceFolders) {
-                    val path = normalize(VfsUtilCore.urlToPath(folder.url))
-                    if (isUnder(path, ownDir)) continue
-                    // The home module: imported from the Gradle project that contains the folder
-                    val home = holders[folder.url].orEmpty()
-                        .filter { it != module && dirs[it]?.let { dir -> isUnder(path, dir) } == true }
-                        .maxByOrNull { dirs[it]!!.length } ?: continue
-                    urls += folder.url
-                    deps += home
-                }
+            for (path in ideFolders[module]!!.keys + declared[module]!!) {
+                if (isUnder(path, ownDir)) continue
+                // The home module: imported from the Gradle project that contains the folder
+                val home = holders[path].orEmpty()
+                    .filter { it != module && dirs[it]?.let { dir -> isUnder(path, dir) } == true }
+                    .maxWithOrNull(compareBy<Module>({ dirs[it]!!.length }, { if (ideFolders[it]!!.containsKey(path)) 1 else 0 }))
+                    ?: continue
+                ideFolders[module]!![path]?.let { urls += it.url }
+                if (home !in existing) deps += home
             }
             // Project dependencies of the Eclipse .classpath: the borrowed folders compile in their home module only
             // if that module also gets the other Eclipse projects it needs (e.g. CCWriter → CCBase, CCConstants)
-            if (ModuleRootManager.getInstance(module).sourceRoots.isNotEmpty()) {
-                val existing = ModuleRootManager.getInstance(module).dependencies.toSet()
+            if (ideFolders[module]!!.isNotEmpty()) {
                 for (ref in eclipse.projectReferences(ownDir)) {
                     val targetDir = eclipse.dirOf(ref.name) ?: continue
                     if (targetDir == ownDir) continue

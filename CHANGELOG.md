@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-15
+
+### Fixed
+
+- *Production on test* dependencies are set through the workspace model instead of an internal API (Plugin Verifier).
+
 ## [1.1.0] - 2026-10-15
 
 ### Added

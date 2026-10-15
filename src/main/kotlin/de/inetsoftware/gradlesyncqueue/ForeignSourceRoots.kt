@@ -1,5 +1,6 @@
 package de.inetsoftware.gradlesyncqueue
 
+import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
@@ -7,6 +8,10 @@ import com.intellij.openapi.roots.ModuleOrderEntry
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.platform.backend.workspace.WorkspaceModel
+import com.intellij.platform.workspace.jps.entities.ModuleDependency
+import com.intellij.platform.workspace.jps.entities.ModuleId
+import com.intellij.platform.workspace.jps.entities.modifyModuleEntity
 
 /**
  * Source folders that a Gradle build borrows from another project (`srcDirs '../Other/src'`) are compiled by IDEA in
@@ -125,7 +130,24 @@ class ForeignSourceRoots(
                     val entry = model.orderEntries.filterIsInstance<ModuleOrderEntry>().firstOrNull { it.module == dependency }
                         ?: model.addModuleOrderEntry(dependency)
                     if (dependency in change.exported) entry.isExported = true
-                    if (dependency in change.testOnly) entry.isProductionOnTestDependency = true
+                }
+            }
+        }
+        WriteAction.run<RuntimeException> { markProductionOnTest(changes) }
+    }
+
+    /** "Production on test" via the workspace model, the order entry setter is internal API. Needs a write action. */
+    private fun markProductionOnTest(changes: List<Change>) {
+        val targets = changes.filter { it.testOnly.isNotEmpty() && !it.module.isDisposed }
+            .associate { it.module.name to it.testOnly.map(Module::getName).toSet() }
+        if (targets.isEmpty()) return
+        WorkspaceModel.getInstance(project).updateProjectModel("Gradle Sync Queue: production on test") { storage ->
+            for ((moduleName, names) in targets) {
+                val entity = storage.resolve(ModuleId(moduleName)) ?: continue
+                storage.modifyModuleEntity(entity) {
+                    dependencies = dependencies.map { dep ->
+                        if (dep is ModuleDependency && dep.module.name in names && !dep.productionOnTest) dep.copy(productionOnTest = true) else dep
+                    }.toMutableList()
                 }
             }
         }

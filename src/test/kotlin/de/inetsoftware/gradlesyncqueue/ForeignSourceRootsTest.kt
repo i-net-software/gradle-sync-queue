@@ -42,6 +42,7 @@ class ForeignSourceRootsTest : HeavyPlatformTestCase() {
         assertEquals(listOf(coreSrc), coreRoots.sourceRoots.toList())
         assertEquals(listOf(coreSrc), coreRoots.contentRoots.toList())
         assertEquals(listOf(sharedModule), coreRoots.dependencies.toList())
+        assertTrue(coreRoots.orderEntries.filterIsInstance<com.intellij.openapi.roots.ModuleOrderEntry>().single().isExported)
         assertEquals(listOf(sharedSrc), ModuleRootManager.getInstance(sharedModule).sourceRoots.toList())
 
         // Idempotent

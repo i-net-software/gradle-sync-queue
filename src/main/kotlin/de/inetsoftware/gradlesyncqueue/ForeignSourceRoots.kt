@@ -59,7 +59,11 @@ class ForeignSourceRoots(
                     .maxWithOrNull(compareBy<Module>({ dirs[it]!!.length }, { if (ideFolders[it]!!.containsKey(path)) 1 else 0 }))
                     ?: continue
                 ideFolders[module]!![path]?.let { urls += it.url }
-                if (home !in existing) deps += home
+                // Exported: modules depending on this one saw the borrowed classes before (e.g. CC.mock → CC.main)
+                if (home !in existing) {
+                    deps += home
+                    exported += home
+                }
             }
             // Project dependencies of the Eclipse .classpath: the borrowed folders compile in their home module only
             // if that module also gets the other Eclipse projects it needs (e.g. CCWriter → CCBase, CCConstants)

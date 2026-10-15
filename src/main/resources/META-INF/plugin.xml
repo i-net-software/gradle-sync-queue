@@ -12,14 +12,22 @@
       <li>Works for every sync, including those started by the IDE itself</li>
       <li><b>Gradle Queue</b> tool window: queued, running and finished syncs; cancel or release entries</li>
       <li><i>Refresh Gradle via Queue</i> in the Project view context menu</li>
+      <li>Source folders a build borrows from another project (<code>srcDirs '../Other/src'</code>) are replaced by a
+      dependency on that project's module, like Eclipse/Buildship does. IDEA would otherwise compile them twice and
+      ignore the source set's exclude/include patterns (IDEA-169124). Can be turned off in Settings → Advanced Settings.</li>
     </ul>
     ]]></description>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.gradle</depends>
     <extensions defaultExtensionNs="com.intellij">
         <externalSystemTaskNotificationListener implementation="de.inetsoftware.gradlesyncqueue.TaskCompletionListener"/>
+        <advancedSetting id="gradle.sync.queue.replace.borrowed.sources" default="true" groupKey="advanced.setting.gradle.sync.queue.group" bundle="messages.GradleSyncQueueBundle"/>
         <toolWindow id="Gradle Queue" anchor="bottom" icon="AllIcons.Actions.Refresh" factoryClass="de.inetsoftware.gradlesyncqueue.QueueWindowFactory"/>
     </extensions>
+    <projectListeners>
+        <listener class="de.inetsoftware.gradlesyncqueue.ForeignSourceRootsImportListener"
+                  topic="com.intellij.openapi.externalSystem.service.project.manage.ProjectDataImportListener"/>
+    </projectListeners>
     <extensions defaultExtensionNs="org.jetbrains.plugins.gradle">
         <projectResolve implementation="de.inetsoftware.gradlesyncqueue.QueuedResolverExtension"/>
     </extensions>

@@ -45,6 +45,16 @@ class ForeignSourceRoots(
             (ideFolders[module]!!.keys + declared[module]!!).forEach { holders.getOrPut(it) { LinkedHashSet() } += module }
         }
         val eclipse = EclipseProjects(modules.mapNotNull { dirs[it] }.toSet())
+        // Borrowed folder → home module, per module: imported from the Gradle project that contains the folder
+        val borrowed = modules.associateWith { module ->
+            val ownDir = dirs[module] ?: return@associateWith emptyMap<String, Module>()
+            (ideFolders[module]!!.keys + declared[module]!!).filter { !isUnder(it, ownDir) }.mapNotNull { path ->
+                holders[path].orEmpty()
+                    .filter { it != module && dirs[it]?.let { dir -> isUnder(path, dir) } == true }
+                    .maxWithOrNull(compareBy<Module>({ dirs[it]!!.length }, { if (ideFolders[it]!!.containsKey(path)) 1 else 0 }))
+                    ?.let { path to it }
+            }.toMap()
+        }
         val changes = ArrayList<Change>()
         for (module in modules) {
             val ownDir = dirs[module] ?: continue
@@ -54,18 +64,20 @@ class ForeignSourceRoots(
             val urls = LinkedHashSet<String>()
             val deps = LinkedHashSet<Module>()
             val exported = LinkedHashSet<Module>()
-            for (path in ideFolders[module]!!.keys + declared[module]!!) {
-                if (isUnder(path, ownDir)) continue
-                // The home module: imported from the Gradle project that contains the folder
-                val home = holders[path].orEmpty()
-                    .filter { it != module && dirs[it]?.let { dir -> isUnder(path, dir) } == true }
-                    .maxWithOrNull(compareBy<Module>({ dirs[it]!!.length }, { if (ideFolders[it]!!.containsKey(path)) 1 else 0 }))
-                    ?: continue
+            for ((path, home) in borrowed[module]!!) {
                 ideFolders[module]!![path]?.let { urls += it.url }
                 // Exported: modules depending on this one saw the borrowed classes before (e.g. CC.mock → CC.main)
                 if (home !in existingExported) {
                     deps += home
                     exported += home
+                }
+            }
+            // Source sets of the same project that this one depends on (CC.mock → CC.main) compiled the borrowed classes
+            // before; give their homes directly, as Eclipse has one class path per project
+            for (sibling in existing) {
+                if (sibling == module || dirs[sibling] != ownDir) continue
+                for (home in borrowed[sibling]!!.values) {
+                    if (home != module && home !in existing) deps += home
                 }
             }
             // Project dependencies of the Eclipse .classpath: the borrowed folders compile in their home module only

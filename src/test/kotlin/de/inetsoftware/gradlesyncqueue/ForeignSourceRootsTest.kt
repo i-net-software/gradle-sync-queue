@@ -110,4 +110,31 @@ class ForeignSourceRootsTest : HeavyPlatformTestCase() {
         assertEquals(listOf(sharedModule), ModuleRootManager.getInstance(coreModule).dependencies.toList())
         assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
     }
+
+    fun testSiblingSourceSetGetsTheHomesOfItsMainModule() {
+        // CC.mock depends on CC.main, which borrows CCConstants/src
+        lateinit var cc: VirtualFile
+        lateinit var constants: VirtualFile
+        WriteAction.run<Exception> {
+            val ws = tempDir.createVirtualDir()
+            cc = ws.createChildDirectory(this, "CC")
+            constants = ws.createChildDirectory(this, "CCConstants")
+            cc.createChildDirectory(this, "src")
+            cc.createChildDirectory(this, "mock")
+            constants.createChildDirectory(this, "src")
+        }
+        val main = createModule("CC.main")
+        val mock = createModule("CC.mock")
+        val constantsModule = createModule("CCConstants.main")
+        PsiTestUtil.addSourceContentToRoots(main, cc.findChild("src")!!)
+        PsiTestUtil.addSourceContentToRoots(mock, cc.findChild("mock")!!)
+        PsiTestUtil.addSourceContentToRoots(constantsModule, constants.findChild("src")!!)
+        com.intellij.openapi.roots.ModuleRootModificationUtil.addDependency(mock, main)
+        val dirs = mapOf<Module, String>(main to cc.path, mock to cc.path, constantsModule to constants.path)
+        val declared = mapOf(main to listOf(cc.path + "/src", constants.path + "/src"))
+        val roots = ForeignSourceRoots(project, { declared[it].orEmpty() }) { dirs[it] }
+        roots.apply(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+        assertSameElements(ModuleRootManager.getInstance(mock).dependencies.toList(), main, constantsModule)
+        assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+    }
 }

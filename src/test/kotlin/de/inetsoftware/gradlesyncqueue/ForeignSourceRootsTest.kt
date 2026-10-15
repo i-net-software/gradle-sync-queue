@@ -56,4 +56,34 @@ class ForeignSourceRootsTest : HeavyPlatformTestCase() {
         val roots = ForeignSourceRoots(project) { if (it == module) "/somewhere/else" else null }
         assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
     }
+
+    fun testEclipseProjectReferencesBecomeDependencies() {
+        // CCWriter's .classpath references /CCBase, which its Gradle build does not know
+        lateinit var writer: VirtualFile
+        lateinit var base: VirtualFile
+        WriteAction.run<Exception> {
+            val ws = tempDir.createVirtualDir()
+            writer = ws.createChildDirectory(this, "CCWriter")
+            base = ws.createChildDirectory(this, "CCBase")
+            writer.createChildData(this, ".classpath").setBinaryContent(
+                "<classpath><classpathentry kind=\"src\" path=\"src\"/><classpathentry combineaccessrules=\"false\" exported=\"true\" kind=\"src\" path=\"/CCBase\"/></classpath>".toByteArray()
+            )
+            base.createChildData(this, ".project").setBinaryContent("<projectDescription><name>CCBase</name></projectDescription>".toByteArray())
+            writer.createChildDirectory(this, "src")
+            base.createChildDirectory(this, "src")
+        }
+        val writerModule = createModule("CCWriter.main")
+        val baseModule = createModule("CCBase.main")
+        PsiTestUtil.addSourceContentToRoots(writerModule, writer.findChild("src")!!)
+        PsiTestUtil.addSourceContentToRoots(baseModule, base.findChild("src")!!)
+
+        val dirs = mapOf<Module, String>(writerModule to writer.path, baseModule to base.path)
+        val roots = ForeignSourceRoots(project) { dirs[it] }
+        roots.apply(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+
+        assertEquals(listOf(baseModule), ModuleRootManager.getInstance(writerModule).dependencies.toList())
+        val entry = ModuleRootManager.getInstance(writerModule).orderEntries.filterIsInstance<com.intellij.openapi.roots.ModuleOrderEntry>().single()
+        assertTrue(entry.isExported)
+        assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+    }
 }

@@ -20,7 +20,7 @@ class ForeignSourceRootsImportListener(private val project: Project) : ProjectDa
             val changes = roots.plan() // the EDT may read the project model
             if (changes.isEmpty()) return@invokeLater
             for (c in changes) {
-                LOG.info("${c.module.name}: borrowed ${c.folderUrls.joinToString()} -> depends on ${c.dependencies.joinToString { it.name }}")
+                LOG.info("${c.module.name}: removed borrowed ${c.folderUrls.joinToString()}; depends on ${c.dependencies.joinToString { it.name }}")
             }
             roots.apply(changes)
         }, project.disposed)

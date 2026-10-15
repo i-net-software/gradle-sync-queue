@@ -21,7 +21,8 @@ class ForeignSourceRoots(
     private val projectDirOf: (Module) -> String?,
 ) {
 
-    data class Change(val module: Module, val folderUrls: Set<String>, val dependencies: Set<Module>)
+    /** [exported]: dependencies Eclipse re-exports (`exported="true"` in `.classpath`) */
+    data class Change(val module: Module, val folderUrls: Set<String>, val dependencies: Set<Module>, val exported: Set<Module> = emptySet())
 
     /** What [apply] would change. Needs a read action. */
     fun plan(): List<Change> {
@@ -34,11 +35,13 @@ class ForeignSourceRoots(
                 for (folder in entry.sourceFolders) holders.getOrPut(folder.url) { ArrayList() } += module
             }
         }
+        val eclipse = EclipseProjects(modules.mapNotNull { dirs[it] }.toSet())
         val changes = ArrayList<Change>()
         for (module in modules) {
             val ownDir = dirs[module] ?: continue
             val urls = LinkedHashSet<String>()
             val deps = LinkedHashSet<Module>()
+            val exported = LinkedHashSet<Module>()
             for (entry in ModuleRootManager.getInstance(module).contentEntries) {
                 for (folder in entry.sourceFolders) {
                     val path = normalize(VfsUtilCore.urlToPath(folder.url))
@@ -51,7 +54,20 @@ class ForeignSourceRoots(
                     deps += home
                 }
             }
-            if (urls.isNotEmpty()) changes += Change(module, urls, deps)
+            // Project dependencies of the Eclipse .classpath: the borrowed folders compile in their home module only
+            // if that module also gets the other Eclipse projects it needs (e.g. CCWriter → CCBase, CCConstants)
+            if (ModuleRootManager.getInstance(module).sourceRoots.isNotEmpty()) {
+                val existing = ModuleRootManager.getInstance(module).dependencies.toSet()
+                for (ref in eclipse.projectReferences(ownDir)) {
+                    val targetDir = eclipse.dirOf(ref.name) ?: continue
+                    if (targetDir == ownDir) continue
+                    val target = modules.filter { dirs[it] == targetDir && it.name.endsWith(".main") }.singleOrNull() ?: continue
+                    if (target in existing) continue
+                    deps += target
+                    if (ref.exported) exported += target
+                }
+            }
+            if (urls.isNotEmpty() || deps.isNotEmpty()) changes += Change(module, urls, deps, exported)
         }
         return changes
     }
@@ -70,7 +86,9 @@ class ForeignSourceRoots(
                 }
                 val existing = model.moduleDependencies.toSet()
                 for (dependency in change.dependencies) {
-                    if (dependency !in existing && dependency != change.module) model.addModuleOrderEntry(dependency)
+                    if (dependency !in existing && dependency != change.module) {
+                        model.addModuleOrderEntry(dependency).isExported = dependency in change.exported
+                    }
                 }
             }
         }
@@ -80,5 +98,44 @@ class ForeignSourceRoots(
         private fun normalize(path: String) = path.replace('\\', '/').trimEnd('/')
 
         private fun isUnder(path: String, dir: String) = path == dir || path.startsWith("$dir/")
+    }
+}
+
+/** Eclipse project names and `.classpath` project references of the Gradle project folders. */
+internal class EclipseProjects(projectDirs: Set<String>) {
+    data class Reference(val name: String, val exported: Boolean)
+
+    private val dirsByName: Map<String, String> = projectDirs.mapNotNull { dir -> readName(dir)?.let { it to dir } }.toMap()
+
+    fun dirOf(name: String): String? = dirsByName[name]
+
+    fun projectReferences(dir: String): List<Reference> {
+        val file = java.io.File(dir, ".classpath")
+        if (!file.isFile) return emptyList()
+        return try {
+            ENTRY.findAll(file.readText()).mapNotNull { m ->
+                val attrs = ATTR.findAll(m.value).associate { it.groupValues[1] to it.groupValues[2] }
+                val path = attrs["path"] ?: return@mapNotNull null
+                if (attrs["kind"] != "src" || !path.startsWith("/")) null else Reference(path.substring(1), attrs["exported"] == "true")
+            }.toList()
+        } catch (_: java.io.IOException) {
+            emptyList()
+        }
+    }
+
+    private companion object {
+        val ENTRY = Regex("""<classpathentry\s[^>]*>""")
+        val ATTR = Regex("""(\w+)="([^"]*)"""")
+        val NAME = Regex("""<projectDescription>\s*<name>([^<]*)</name>""")
+
+        fun readName(dir: String): String? {
+            val file = java.io.File(dir, ".project")
+            if (!file.isFile) return null
+            return try {
+                NAME.find(file.readText())?.groupValues?.get(1)?.trim()?.ifEmpty { null }
+            } catch (_: java.io.IOException) {
+                null
+            }
+        }
     }
 }

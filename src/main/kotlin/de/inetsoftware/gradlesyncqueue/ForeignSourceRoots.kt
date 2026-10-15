@@ -28,7 +28,10 @@ class ForeignSourceRoots(
 ) {
 
     /** [exported]: dependencies Eclipse re-exports (`exported="true"` in `.classpath`) */
-    data class Change(val module: Module, val folderUrls: Set<String>, val dependencies: Set<Module>, val exported: Set<Module> = emptySet())
+    data class Change(val module: Module, val folderUrls: Set<String>, val dependencies: Set<Module>, val exported: Set<Module> = emptySet()) {
+        /** Dependencies on modules with test sources only (e.g. CCBase.mock): their test output is what is needed */
+        var testOnly: Set<Module> = emptySet()
+    }
 
     /** What [apply] would change. Needs a read action. */
     fun plan(): List<Change> {
@@ -92,7 +95,15 @@ class ForeignSourceRoots(
                     if (ref.exported) exported += target
                 }
             }
-            if (urls.isNotEmpty() || deps.isNotEmpty()) changes += Change(module, urls, deps, exported)
+            // A dependency on a module with test sources only needs "production on test" to see its classes
+            val entries = ModuleRootManager.getInstance(module).orderEntries.filterIsInstance<ModuleOrderEntry>()
+            for (entry in entries) {
+                val target = entry.module ?: continue
+                if (isTestOnly(target) && !entry.isProductionOnTestDependency) deps += target
+            }
+            if (urls.isNotEmpty() || deps.isNotEmpty()) {
+                changes += Change(module, urls, deps, exported).also { c -> c.testOnly = deps.filter(::isTestOnly).toSet() }
+            }
         }
         return changes
     }
@@ -114,9 +125,15 @@ class ForeignSourceRoots(
                     val entry = model.orderEntries.filterIsInstance<ModuleOrderEntry>().firstOrNull { it.module == dependency }
                         ?: model.addModuleOrderEntry(dependency)
                     if (dependency in change.exported) entry.isExported = true
+                    if (dependency in change.testOnly) entry.isProductionOnTestDependency = true
                 }
             }
         }
+    }
+
+    private fun isTestOnly(module: Module): Boolean {
+        val roots = ModuleRootManager.getInstance(module)
+        return roots.getSourceRoots(false).isEmpty() && roots.getSourceRoots(true).isNotEmpty()
     }
 
     companion object {

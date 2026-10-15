@@ -137,4 +137,28 @@ class ForeignSourceRootsTest : HeavyPlatformTestCase() {
         assertSameElements(ModuleRootManager.getInstance(mock).dependencies.toList(), main, constantsModule)
         assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
     }
+
+    fun testDependencyOnTestOnlyModuleSeesItsTests() {
+        // CC.mock uses classes of CCBase.mock, whose sources are test sources
+        lateinit var cc: VirtualFile
+        lateinit var base: VirtualFile
+        WriteAction.run<Exception> {
+            val ws = tempDir.createVirtualDir()
+            cc = ws.createChildDirectory(this, "CC").createChildDirectory(this, "mock")
+            base = ws.createChildDirectory(this, "CCBase").createChildDirectory(this, "mock")
+        }
+        val ccMock = createModule("CC.mock")
+        val baseMock = createModule("CCBase.mock")
+        PsiTestUtil.addContentRoot(ccMock, cc)
+        PsiTestUtil.addSourceRoot(ccMock, cc, true)
+        PsiTestUtil.addContentRoot(baseMock, base)
+        PsiTestUtil.addSourceRoot(baseMock, base, true)
+        com.intellij.openapi.roots.ModuleRootModificationUtil.addDependency(ccMock, baseMock)
+        val dirs = mapOf<Module, String>(ccMock to cc.parent.path, baseMock to base.parent.path)
+        val roots = ForeignSourceRoots(project) { dirs[it] }
+        roots.apply(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+        val entry = ModuleRootManager.getInstance(ccMock).orderEntries.filterIsInstance<com.intellij.openapi.roots.ModuleOrderEntry>().single()
+        assertTrue(entry.isProductionOnTestDependency)
+        assertEmpty(ReadAction.compute<List<ForeignSourceRoots.Change>, RuntimeException> { roots.plan() })
+    }
 }

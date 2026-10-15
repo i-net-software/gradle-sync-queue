@@ -3,6 +3,7 @@ package de.inetsoftware.gradlesyncqueue
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ModuleOrderEntry
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.vfs.VfsUtilCore
@@ -48,6 +49,8 @@ class ForeignSourceRoots(
         for (module in modules) {
             val ownDir = dirs[module] ?: continue
             val existing = ModuleRootManager.getInstance(module).dependencies.toSet()
+            val existingExported = ModuleRootManager.getInstance(module).orderEntries
+                .filterIsInstance<ModuleOrderEntry>().filter { it.isExported }.mapNotNull { it.module }.toSet()
             val urls = LinkedHashSet<String>()
             val deps = LinkedHashSet<Module>()
             val exported = LinkedHashSet<Module>()
@@ -60,7 +63,7 @@ class ForeignSourceRoots(
                     ?: continue
                 ideFolders[module]!![path]?.let { urls += it.url }
                 // Exported: modules depending on this one saw the borrowed classes before (e.g. CC.mock → CC.main)
-                if (home !in existing) {
+                if (home !in existingExported) {
                     deps += home
                     exported += home
                 }
@@ -94,11 +97,11 @@ class ForeignSourceRoots(
                     val rootPath = normalize(VfsUtilCore.urlToPath(entry.url))
                     if (entry.sourceFolders.isEmpty() && ownDir != null && !isUnder(rootPath, ownDir)) model.removeContentEntry(entry)
                 }
-                val existing = model.moduleDependencies.toSet()
                 for (dependency in change.dependencies) {
-                    if (dependency !in existing && dependency != change.module) {
-                        model.addModuleOrderEntry(dependency).isExported = dependency in change.exported
-                    }
+                    if (dependency == change.module) continue
+                    val entry = model.orderEntries.filterIsInstance<ModuleOrderEntry>().firstOrNull { it.module == dependency }
+                        ?: model.addModuleOrderEntry(dependency)
+                    if (dependency in change.exported) entry.isExported = true
                 }
             }
         }

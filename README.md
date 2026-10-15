@@ -20,6 +20,23 @@ When an IDE project links many Gradle builds, IntelliJ IDEA starts a sync for ea
 * An `ExternalSystemTaskNotificationListener` releases the gate when a sync fails or is cancelled.
 * While a sync waits in the queue it can still be cancelled with the IDE's stop button.
 
+### Borrowed source folders (Eclipse-like module dependencies)
+
+Some builds compile source folders of other projects (`srcDirs '../Other/src'`), often with `exclude`/`include`
+patterns. IntelliJ IDEA's own compiler then compiles those folders in several modules and ignores the patterns
+([IDEA-169124](https://youtrack.jetbrains.com/issue/IDEA-169124)). Eclipse/Buildship avoids this with project
+dependencies in `.classpath`. After every Gradle sync this plugin does the same:
+
+* A source folder outside the module's own Gradle project whose home project has a module is removed and replaced by
+  an exported dependency on that module (e.g. `InetServerCore.main` → `Json.main`). The folders come from the Gradle
+  model, so this also works when IDEA kept a folder in one module only.
+* Project references of the Eclipse `.classpath` (`<classpathentry kind="src" path="/Other"/>`) become module
+  dependencies of all source set modules of that project, `exported="true"` included.
+* Source sets of the same project that depend on the borrowing one (e.g. `mock` → `main`) get the same dependencies;
+  dependencies on modules with test sources only are marked *production on test*.
+* Every change is logged (category `de.inetsoftware.gradlesyncqueue`). Turn it off in
+  **Settings → Advanced Settings → Gradle Sync Queue**.
+
 ## Installation
 
 Download `gradle-sync-queue-<version>.zip` from the [latest release](https://github.com/i-net-software/gradle-sync-queue/releases/latest), then in IntelliJ IDEA 2026.2 or newer: **Settings → Plugins → ⚙ → Install Plugin from Disk…** and select the ZIP.

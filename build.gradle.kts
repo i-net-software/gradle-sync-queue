@@ -54,7 +54,7 @@ intellijPlatform {
     }
 
     publishing {
-        token = providers.environmentVariable("PUBLISH_TOKEN")
+        token = providers.environmentVariable("JETBRAINS_PUBLISH_TOKEN")
         // 1.2.0-beta.1 → channel "beta"; plain versions go to the default channel
         channels = providers.gradleProperty("pluginVersion").map {
             listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" })

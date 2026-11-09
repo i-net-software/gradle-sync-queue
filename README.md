@@ -81,9 +81,9 @@ Requirements: JDK 25. The build downloads IntelliJ IDEA 2026.2 (about 1.5 GB) on
 
 1. Move the entries under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) to a new version section.
 2. Push a tag `v<version>`, e.g. `v1.0.0` (`v1.1.0-beta.1` publishes to the `beta` channel).
-3. The [release workflow](.github/workflows/release.yml) runs the tests, creates a GitHub release with the plugin ZIP and, if the `PUBLISH_TOKEN` secret is set, publishes to the JetBrains Marketplace.
+3. The [release workflow](.github/workflows/release.yml) runs the tests, creates a GitHub release with the plugin ZIP and, if the `JETBRAINS_PUBLISH_TOKEN` secret is set, publishes to the JetBrains Marketplace.
 
-Repository secrets: `PUBLISH_TOKEN` (JetBrains Marketplace token; the very first Marketplace upload has to be done manually on plugins.jetbrains.com); optional for plugin signing: `CERTIFICATE_CHAIN`, `PRIVATE_KEY`, `PRIVATE_KEY_PASSWORD`.
+Repository secrets: `JETBRAINS_PUBLISH_TOKEN` (JetBrains Marketplace token; the very first Marketplace upload has to be done manually on plugins.jetbrains.com); optional for plugin signing: `CERTIFICATE_CHAIN`, `PRIVATE_KEY`, `PRIVATE_KEY_PASSWORD`.
 
 ## License
 

@@ -66,12 +66,19 @@ internal object AnnotationProcessingProfiles {
         val manualModules = manual.flatMap { it.moduleNames }.toSet()
         val grouped = declarations.filterKeys { it !in manualModules }.entries.groupBy { it.value }
         return manual + grouped.map { (spec, modules) ->
-            ProcessorConfigProfileImpl("Gradle Imported").apply {
+            // Match IDEA's profile identity, preserving settings not supplied by the Gradle model.
+            val template = existing.firstOrNull {
+                it.name == "Gradle Imported" && it.processorPath == spec.path && it.processorOptions == spec.options
+            }
+            val profile = template?.let { ProcessorConfigProfileImpl(it) }
+                ?: ProcessorConfigProfileImpl("Gradle Imported")
+            profile.apply {
                 isEnabled = true
                 isObtainProcessorsFromClasspath = false
                 isOutputRelativeToContentRoot = true
                 setProcessorPath(spec.path)
                 spec.options.forEach { (key, value) -> setOption(key, value) }
+                clearModuleNames()
                 modules.forEach { addModuleName(it.key) }
             }
         }

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve configured generated-source directories and other existing profile settings when repairing annotation processor module assignments.
+
 ## [1.1.2-beta.1] - 2026-11-09
 
 ### Fixed

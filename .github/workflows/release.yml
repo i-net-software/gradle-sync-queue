@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: write  # create the GitHub release
     env:
-      PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+      JETBRAINS_PUBLISH_TOKEN: ${{ secrets.JETBRAINS_PUBLISH_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,9 +40,9 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(steps.version.outputs.version, '-') }}
 
-      # Skipped until the PUBLISH_TOKEN secret is configured (the first Marketplace upload is manual).
+      # Skipped until the JETBRAINS_PUBLISH_TOKEN secret is configured (the first Marketplace upload is manual).
       - name: Publish to JetBrains Marketplace
-        if: env.PUBLISH_TOKEN != ''
+        if: env.JETBRAINS_PUBLISH_TOKEN != ''
         env:
           CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}

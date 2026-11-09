@@ -19,6 +19,8 @@ dependencies {
     intellijPlatform {
         intellijIdea(providers.gradleProperty("platformVersion"))
         bundledPlugin("com.intellij.gradle")
+        bundledPlugin("com.intellij.java")
+        bundledPlugin("org.jetbrains.plugins.gradle")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")

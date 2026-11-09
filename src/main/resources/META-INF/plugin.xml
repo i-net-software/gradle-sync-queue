@@ -19,12 +19,16 @@
     ]]></description>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.gradle</depends>
+    <depends>com.intellij.java</depends>
+    <depends>org.jetbrains.plugins.gradle</depends>
     <extensions defaultExtensionNs="com.intellij">
         <externalSystemTaskNotificationListener implementation="de.inetsoftware.gradlesyncqueue.TaskCompletionListener"/>
         <advancedSetting id="gradle.sync.queue.replace.borrowed.sources" default="true" groupKey="advanced.setting.gradle.sync.queue.group" bundle="messages.GradleSyncQueueBundle"/>
         <toolWindow id="Gradle Queue" anchor="bottom" icon="AllIcons.Actions.Refresh" factoryClass="de.inetsoftware.gradlesyncqueue.QueueWindowFactory"/>
     </extensions>
     <projectListeners>
+        <listener class="de.inetsoftware.gradlesyncqueue.AnnotationProcessingImportListener"
+                  topic="com.intellij.openapi.externalSystem.service.project.manage.ProjectDataImportListener"/>
         <listener class="de.inetsoftware.gradlesyncqueue.ForeignSourceRootsImportListener"
                   topic="com.intellij.openapi.externalSystem.service.project.manage.ProjectDataImportListener"/>
     </projectListeners>

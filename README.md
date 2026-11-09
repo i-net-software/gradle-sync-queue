@@ -37,6 +37,13 @@ dependencies in `.classpath`. After every Gradle sync this plugin does the same:
 * Every change is logged (category `de.inetsoftware.gradlesyncqueue`). Turn it off in
   **Settings → Advanced Settings → Gradle Sync Queue**.
 
+### Annotation processor profiles
+
+IDEA can clear the module list of a shared `Gradle Imported` annotation processor profile when refreshing a single
+linked build. After each successful import, the plugin reconciles these profiles from the cached models of all
+builds and the currently loaded Gradle modules. Equal processor paths and options share a profile; removed
+declarations are discarded. Manually named profiles are preserved. No Gradle build is started by this repair.
+
 ## Installation
 
 Download `gradle-sync-queue-<version>.zip` from the [latest release](https://github.com/i-net-software/gradle-sync-queue/releases/latest), then in IntelliJ IDEA 2026.2 or newer: **Settings → Plugins → ⚙ → Install Plugin from Disk…** and select the ZIP.

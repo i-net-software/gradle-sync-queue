@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-09
+
 ### Fixed
 
+- Restore annotation processor module assignments from all cached Gradle build models after every successful import. Refreshing one linked build no longer leaves other builds without their shared processor profile. Removed declarations are discarded and manually named profiles are preserved.
 - Preserve configured generated-source directories and other existing profile settings when repairing annotation processor module assignments.
 
 ## [1.1.2-beta.1] - 2026-11-09
